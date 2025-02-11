@@ -3,21 +3,18 @@ import '@testing-library/jest-dom';
 
 import { handlers } from './__mocks__/handlers';
 
-// ! Hard 여기 제공 안함
+// Date timezone UTC 로 변경
+process.env.TZ = 'UTC';
+
 /* msw */
 export const server = setupServer(...handlers);
 
-vi.stubEnv('TZ', 'UTC');
-
 beforeAll(() => {
   server.listen();
-  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 beforeEach(() => {
-  expect.hasAssertions(); // ? Med: 이걸 왜 써야하는지 물어보자
-
-  vi.setSystemTime(new Date('2024-10-01')); // ? Med: 이걸 왜 써야하는지 물어보자
+  expect.hasAssertions();
 });
 
 afterEach(() => {
@@ -27,6 +24,5 @@ afterEach(() => {
 
 afterAll(() => {
   vi.resetAllMocks();
-  vi.useRealTimers();
   server.close();
 });
