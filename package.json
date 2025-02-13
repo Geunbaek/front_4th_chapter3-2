@@ -8,11 +8,15 @@
     "server:watch": "node --watch server.js",
     "start": "vite",
     "dev": "concurrently \"pnpm run server:watch\" \"pnpm run start\"",
+    "prod": "concurrently \"pnpm run server:watch\" \"pnpm run start --mode production\"",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "build": "tsc -b && vite build",
-    "lint": "eslint . --ext ts,tsx,js --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx,js --report-unused-disable-directives --max-warnings 0",
+    "test:e2e:gen": "playwright codegen http://localhost:5173",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@chakra-ui/icons": "^2.1.1",
@@ -29,9 +33,11 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^9.4.0",
+    "@playwright/test": "^1.50.1",
     "@testing-library/jest-dom": "^6.4.5",
     "@testing-library/react": "^15.0.7",
     "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.13.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^7.13.1",
