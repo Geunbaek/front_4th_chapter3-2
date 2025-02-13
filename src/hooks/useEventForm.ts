@@ -3,6 +3,7 @@ import { ChangeEvent, useEffect, useState } from 'react';
 import { Event, RepeatType } from '../types';
 import { getTimeErrorMessage } from '../utils/timeValidation';
 
+export type RepeatEndType = 'endDate' | 'count' | 'none';
 type TimeErrorRecord = Record<'startTimeError' | 'endTimeError', string | null>;
 
 export const useEventForm = (initialEvent?: Event) => {
@@ -13,10 +14,15 @@ export const useEventForm = (initialEvent?: Event) => {
   const [description, setDescription] = useState(initialEvent?.description || '');
   const [location, setLocation] = useState(initialEvent?.location || '');
   const [category, setCategory] = useState(initialEvent?.category || '');
+
   const [isRepeating, setIsRepeating] = useState(initialEvent?.repeat.type !== 'none');
-  const [repeatType, setRepeatType] = useState<RepeatType>(initialEvent?.repeat.type || 'none');
+  const [repeatType, setRepeatType] = useState<RepeatType>(initialEvent?.repeat.type || 'daily');
+  const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>(
+    initialEvent?.repeat.endDate ? 'endDate' : initialEvent?.repeat.count ? 'count' : 'none'
+  );
   const [repeatInterval, setRepeatInterval] = useState(initialEvent?.repeat.interval || 1);
   const [repeatEndDate, setRepeatEndDate] = useState(initialEvent?.repeat.endDate || '');
+  const [repeatCount, setRepeatCount] = useState(initialEvent?.repeat.count || undefined);
   const [notificationTime, setNotificationTime] = useState(initialEvent?.notificationTime || 10);
 
   const [{ startTimeError, endTimeError }, setTimeError] = useState<TimeErrorRecord>({
@@ -45,9 +51,10 @@ export const useEventForm = (initialEvent?: Event) => {
     setLocation('');
     setCategory('');
     setIsRepeating(false);
-    setRepeatType('none');
+    setRepeatType('daily');
     setRepeatInterval(1);
     setRepeatEndDate('');
+    setRepeatCount(undefined);
     setNotificationTime(10);
   };
 
@@ -59,10 +66,14 @@ export const useEventForm = (initialEvent?: Event) => {
     setDescription(initialEvent?.description || '');
     setLocation(initialEvent?.location || '');
     setCategory(initialEvent?.category || '');
-    setIsRepeating(initialEvent?.repeat.type !== 'none');
-    setRepeatType(initialEvent?.repeat.type || 'none');
+    setIsRepeating(!!initialEvent?.repeat.type && initialEvent.repeat.type !== 'none');
+    setRepeatType(initialEvent?.repeat.type || 'daily');
+    setRepeatEndType(
+      initialEvent?.repeat.endDate ? 'endDate' : initialEvent?.repeat.count ? 'count' : 'none'
+    );
     setRepeatInterval(initialEvent?.repeat.interval || 1);
     setRepeatEndDate(initialEvent?.repeat.endDate || '');
+    setRepeatCount(initialEvent?.repeat.count || undefined);
     setNotificationTime(initialEvent?.notificationTime || 10);
   }, [initialEvent]);
 
@@ -85,10 +96,14 @@ export const useEventForm = (initialEvent?: Event) => {
     setIsRepeating,
     repeatType,
     setRepeatType,
+    repeatEndType,
+    setRepeatEndType,
     repeatInterval,
     setRepeatInterval,
     repeatEndDate,
     setRepeatEndDate,
+    repeatCount,
+    setRepeatCount,
     notificationTime,
     setNotificationTime,
     startTimeError,
