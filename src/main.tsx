@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 
 async function prepare() {
+  if (import.meta.env.MODE === 'production') return;
   const { setupWorker } = await import('msw/browser');
   const { handlers } = await import('./__mocks__/handlers.ts');
   const worker = setupWorker(...handlers);
