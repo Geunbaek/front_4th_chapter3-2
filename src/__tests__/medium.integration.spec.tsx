@@ -1,14 +1,16 @@
 import { ChakraProvider } from '@chakra-ui/react';
+import { faker } from '@faker-js/faker';
 import { render, screen, within } from '@testing-library/react';
 import { UserEvent, userEvent } from '@testing-library/user-event';
 
 import {
+  setupMockHandler,
   setupMockHandlerCreation,
   setupMockHandlerDeletion,
   setupMockHandlerUpdating,
 } from '../__mocks__/handlersUtils';
 import App from '../App';
-import { notificationOptions } from '../constants';
+import { notificationOptions, repeatDateOptions } from '../constants';
 import { Event, EventForm } from '../types';
 import { createRandomEvent } from './utils';
 import { formatDate } from '../utils/dateUtils';
@@ -22,8 +24,17 @@ const renderWithUser = (...props: Parameters<typeof render>) => {
 };
 
 const typeEventForm = async (eventForm: EventForm, user: UserEvent) => {
-  const { title, date, startTime, endTime, description, location, category, notificationTime } =
-    eventForm;
+  const {
+    title,
+    date,
+    startTime,
+    endTime,
+    description,
+    location,
+    category,
+    notificationTime,
+    repeat,
+  } = eventForm;
 
   await user.clear(await screen.findByLabelText(/제목/));
   await user.type(await screen.findByLabelText(/제목/), title);
@@ -50,6 +61,39 @@ const typeEventForm = async (eventForm: EventForm, user: UserEvent) => {
   );
 
   await user.selectOptions(await screen.findByLabelText(/알림 설정/), notificationOption!.label);
+
+  const repeatCheckbox: HTMLInputElement = await screen.findByLabelText(/반복 설정/);
+
+  if (repeat.type === 'none') {
+    if (repeatCheckbox.checked) {
+      await user.click(repeatCheckbox);
+    }
+    return;
+  }
+
+  if (!repeatCheckbox.checked) {
+    await user.click(repeatCheckbox);
+  }
+
+  const repeatDateOption = repeatDateOptions.find(
+    (repeatDateOption) => repeatDateOption.value === repeat.type
+  );
+  await user.selectOptions(await screen.findByLabelText(/반복 유형/), repeatDateOption!.label);
+
+  await user.clear(await screen.findByLabelText(/반복 간격/));
+  await user.type(await screen.findByLabelText(/반복 간격/), repeat.interval.toString());
+
+  if (repeat.endDate) {
+    await user.selectOptions(await screen.findByLabelText(/종료 유형/), 'endDate');
+    await user.clear(await screen.findByLabelText(/반복 종료일/));
+    await user.type(await screen.findByLabelText(/반복 종료일/), repeat.endDate);
+  }
+
+  if (repeat.count) {
+    await user.selectOptions(await screen.findByLabelText(/종료 유형/), 'count');
+    await user.clear(await screen.findByLabelText(/반복 횟수/));
+    await user.type(await screen.findByLabelText(/반복 횟수/), repeat.count.toString());
+  }
 };
 
 const checkEventItem = async (event: Event) => {
@@ -431,5 +475,359 @@ describe('알림', () => {
     expect(
       await screen.findByText(new RegExp(`10분 후 ${testEvent.title} 일정이 시작됩니다.`))
     ).toBeInTheDocument();
+  });
+});
+
+describe('일정 반복', () => {
+  beforeEach(() => {
+    const now = new Date('2025-02-01');
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('일정 생성 시 반복 유형을 선택할 수 있다.', async () => {
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    await user.click(await screen.findByLabelText(/반복 설정/));
+    await user.selectOptions(await screen.findByLabelText(/반복 유형/), 'monthly');
+
+    // Assert
+    expect(await screen.findByLabelText(/반복 유형/)).toHaveValue('monthly');
+  });
+
+  it('일정 수정 시 반복 유형을 선택할 수 있다.', async () => {
+    // Arrange
+    const testDate = formatDate(new Date());
+    const testEvent = createRandomEvent({
+      date: testDate,
+      startTime: '13:00',
+      endTime: '14:00',
+      notificationTime: 10,
+    });
+    setupMockHandlerCreation([testEvent]);
+
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    await user.click(await screen.findByLabelText(/Edit event/));
+
+    await user.click(await screen.findByLabelText(/반복 설정/));
+    await user.selectOptions(await screen.findByLabelText(/반복 유형/), 'monthly');
+
+    // Assert
+    expect(await screen.findByLabelText(/반복 유형/)).toHaveValue('monthly');
+  });
+
+  it('각 반복 유형에 대해 간격을 설정할 수 있다.', async () => {
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+
+    await user.click(await screen.findByLabelText(/반복 설정/));
+    await user.clear(await screen.findByLabelText(/반복 간격/));
+    await user.type(await screen.findByLabelText(/반복 간격/), '2');
+
+    // Assert
+    expect(await screen.findByLabelText(/반복 간격/)).toHaveValue(2);
+  });
+
+  it('새로운 반복 일정을 생성하면, 모든 반복 일정들이 이벤트 리스트에 반영된다.', async () => {
+    // Arrange
+    setupMockHandlerCreation([]);
+    const testDate = formatDate(new Date('2025-02-02'));
+    const testEvent = createRandomEvent({
+      title: '기본 일정',
+      date: testDate,
+      repeat: {
+        type: 'weekly',
+        interval: 1,
+        endDate: '2025-02-22',
+      },
+    });
+
+    // act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+
+    await typeEventForm(testEvent, user);
+    await user.click(screen.getByRole('button', { name: /일정 추가/ }));
+
+    // Assert
+    const eventList = screen.getByTestId(/event-list/);
+    expect(await within(eventList).findAllByText(/기본 일정/)).toHaveLength(3);
+  });
+
+  it('반복일정은 캘린더 뷰에 RepeatIcon이 표시된다.', async () => {
+    // Arrange
+    const repeatDates = generateRepeatDates({
+      startDate: '2025-02-10',
+      endDate: '2025-02-19',
+      frequency: 'daily',
+      interval: 1,
+    });
+    const repeatId = faker.string.uuid();
+    const testEvents = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '기존 일정',
+        date,
+        startTime: '14:00',
+        endTime: '15:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId,
+          type: 'daily',
+          interval: 1,
+          endDate: '2025-02-19',
+        },
+      })
+    );
+    setupMockHandlerCreation(testEvents);
+
+    // Act
+    renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    const calendarView = screen.getByTestId(/-view/);
+
+    // Assert
+    expect(await within(calendarView).findAllByTestId(/repeat-icon/)).toHaveLength(10);
+  });
+
+  it('일정 생성 시 반복 종료일을 지정할 수 있다.', async () => {
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    await user.click(await screen.findByLabelText(/반복 설정/));
+    await user.selectOptions(await screen.findByLabelText(/종료 유형/), 'endDate');
+    await user.clear(await screen.findByLabelText(/반복 종료일/));
+    await user.type(await screen.findByLabelText(/반복 종료일/), '2025-02-01');
+
+    // Assert
+    expect(await screen.findByLabelText(/반복 종료일/)).toHaveValue('2025-02-01');
+  });
+
+  it('일정 생성 시 반복 횟수을 지정할 수 있다.', async () => {
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    await user.click(await screen.findByLabelText(/반복 설정/));
+    await user.selectOptions(await screen.findByLabelText(/종료 유형/), 'count');
+    await user.clear(await screen.findByLabelText(/반복 횟수/));
+    await user.type(await screen.findByLabelText(/반복 횟수/), '3');
+
+    // Assert
+    expect(await screen.findByLabelText(/반복 횟수/)).toHaveValue(3);
+  });
+
+  it('반복 일정 수정 후 반복 일정 수정 모달에서 이 일정을 클릭시 해당 일정만 수정된다.', async () => {
+    // Arrange
+    const repeatDates = generateRepeatDates({
+      startDate: '2025-02-10',
+      endDate: '2025-02-12',
+      frequency: 'daily',
+      interval: 1,
+    });
+    const repeatId = faker.string.uuid();
+    const testEvents = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '기존 일정',
+        date,
+        startTime: '14:00',
+        endTime: '15:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId,
+          type: 'daily',
+          endDate: '2025-02-12',
+          interval: 1,
+        },
+      })
+    );
+    setupMockHandler(testEvents);
+    const targetEvent = testEvents[1];
+
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    const targetEventItem = await screen.findByTestId(new RegExp(`event-${targetEvent.id}`));
+    await user.click(await within(targetEventItem).findByLabelText(/Edit event/));
+    await user.clear(await screen.findByLabelText(/제목/));
+    await user.type(await screen.findByLabelText(/제목/), '테스트');
+    await user.click(await screen.findByRole('button', { name: /일정 수정/ }));
+    await user.click(await screen.findByText(/이 일정/));
+    await user.click(await screen.findByRole('button', { name: /확인/ }));
+
+    await screen.findByText(/일정이 수정되었습니다/);
+
+    // Assert
+    const eventList = screen.getByTestId(/event-list/);
+    expect(await within(eventList).findAllByText(/테스트/)).toHaveLength(1);
+    expect(await within(eventList).findAllByText(/기존 일정/)).toHaveLength(2);
+  });
+
+  it('반복 일정 삭제 후 반복 일정 삭제 모달에서 이 일정을 클릭시 해당 일정만 삭제된다.', async () => {
+    // Arrange
+    const repeatDates = generateRepeatDates({
+      startDate: '2025-02-10',
+      endDate: '2025-02-12',
+      frequency: 'daily',
+      interval: 1,
+    });
+    const repeatId = faker.string.uuid();
+    const testEvents = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '기존 일정',
+        date,
+        startTime: '14:00',
+        endTime: '15:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId,
+          type: 'daily',
+          endDate: '2025-02-12',
+          interval: 1,
+        },
+      })
+    );
+    setupMockHandler(testEvents);
+    const targetEvent = testEvents[1];
+
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    const targetEventItem = await screen.findByTestId(new RegExp(`event-${targetEvent.id}`));
+    await user.click(await within(targetEventItem).findByLabelText(/Delete event/));
+    await user.click(await screen.findByText(/이 일정/));
+    await user.click(await screen.findByRole('button', { name: /확인/ }));
+
+    await screen.findByText(/일정이 삭제되었습니다/);
+
+    // Assert
+    const eventList = screen.getByTestId(/event-list/);
+    expect(await within(eventList).findAllByText(/기존 일정/)).toHaveLength(2);
+  });
+
+  it('반복 일정 수정 후 반복 일정 수정 모달에서 모든 일정을 클릭시 모든 반복 일정만 수정된다.', async () => {
+    // Arrange
+    const repeatDates = generateRepeatDates({
+      startDate: '2025-02-10',
+      endDate: '2025-02-12',
+      frequency: 'daily',
+      interval: 1,
+    });
+    const repeatId = faker.string.uuid();
+    const testEvents = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '기존 일정',
+        date,
+        startTime: '14:00',
+        endTime: '15:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId,
+          type: 'daily',
+          endDate: '2025-02-12',
+          interval: 1,
+        },
+      })
+    );
+    setupMockHandler(testEvents);
+    const targetEvent = testEvents[1];
+
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    const targetEventItem = await screen.findByTestId(new RegExp(`event-${targetEvent.id}`));
+    await user.click(await within(targetEventItem).findByLabelText(/Edit event/));
+    await user.clear(await screen.findByLabelText(/제목/));
+    await user.type(await screen.findByLabelText(/제목/), '테스트');
+    await user.click(await screen.findByRole('button', { name: /일정 수정/ }));
+    await user.click(await screen.findByText(/모든 일정/));
+    await user.click(await screen.findByRole('button', { name: /확인/ }));
+
+    await screen.findByText(/일정이 수정되었습니다/);
+
+    // Assert
+    const eventList = screen.getByTestId(/event-list/);
+    expect(await within(eventList).findAllByText(/테스트/)).toHaveLength(3);
+    expect(within(eventList).queryAllByAltText(/기존 일정/)).toHaveLength(0);
+  });
+
+  it('반복 일정 삭제 후 반복 일정 삭제 모달에서 모든 일정을 클릭시 모든 반복 일정이 삭제된다.', async () => {
+    // Arrange
+    const repeatDates = generateRepeatDates({
+      startDate: '2025-02-10',
+      endDate: '2025-02-12',
+      frequency: 'daily',
+      interval: 1,
+    });
+    const repeatId = faker.string.uuid();
+    const testEvents = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '기존 일정',
+        date,
+        startTime: '14:00',
+        endTime: '15:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId,
+          type: 'daily',
+          endDate: '2025-02-12',
+          interval: 1,
+        },
+      })
+    );
+    setupMockHandler(testEvents);
+    const targetEvent = testEvents[1];
+
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    const targetEventItem = await screen.findByTestId(new RegExp(`event-${targetEvent.id}`));
+    await user.click(await within(targetEventItem).findByLabelText(/Delete event/));
+    await user.click(await screen.findByText(/모든 일정/));
+    await user.click(await screen.findByRole('button', { name: /확인/ }));
+
+    await screen.findByText(/일정이 삭제되었습니다/);
+
+    // Assert
+    const eventList = screen.getByTestId(/event-list/);
+    expect(within(eventList).queryAllByText(/기존 일정/)).toHaveLength(0);
   });
 });
