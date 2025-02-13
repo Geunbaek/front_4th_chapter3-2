@@ -51,7 +51,10 @@ describe('useEventOverlapCheck 훅', () => {
 
     // Act
     const { result } = renderHook(() => useEventOverlapCheck([event]));
-    const isOverlap = result.current.checkOverlap(newEvent);
+    let isOverlap;
+    act(() => {
+      isOverlap = result.current.checkOverlap(newEvent);
+    });
 
     // Assert
     expect(isOverlap).toBe(false);
