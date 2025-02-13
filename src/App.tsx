@@ -40,6 +40,7 @@ function App() {
           holidays={holidays}
         />
         <EventList
+          events={events}
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           filteredEvents={filteredEvents}
