@@ -831,4 +831,68 @@ describe('일정 반복', () => {
     const eventList = screen.getByTestId(/event-list/);
     expect(within(eventList).queryAllByText(/기존 일정/)).toHaveLength(0);
   });
+
+  it('반복 일정 수정 시 일정이 겹치면 일정 겹침 모달이 생성된다.', async () => {
+    // Arrange
+    const repeatDates = generateRepeatDates({
+      startDate: '2025-02-10',
+      endDate: '2025-02-12',
+      frequency: 'daily',
+      interval: 1,
+    });
+    const repeatId1 = faker.string.uuid();
+    const testEvents = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '기존 일정',
+        date,
+        startTime: '14:00',
+        endTime: '15:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId1,
+          type: 'daily',
+          endDate: '2025-02-12',
+          interval: 1,
+        },
+      })
+    );
+
+    const repeatId2 = faker.string.uuid();
+    const testEvents2 = repeatDates.map((date) =>
+      createRandomEvent({
+        title: '수정 일정',
+        date,
+        startTime: '16:00',
+        endTime: '17:00',
+        notificationTime: 10,
+        repeat: {
+          id: repeatId2,
+          type: 'daily',
+          endDate: '2025-02-12',
+          interval: 1,
+        },
+      })
+    );
+    setupMockHandler([...testEvents, ...testEvents2]);
+    const targetEvent = testEvents2[1];
+
+    // Act
+    const { user } = renderWithUser(
+      <ChakraProvider>
+        <App />
+      </ChakraProvider>
+    );
+    const targetEventItem = await screen.findByTestId(new RegExp(`event-${targetEvent.id}`));
+    await user.click(await within(targetEventItem).findByLabelText(/Edit event/));
+    await user.clear(await screen.findByLabelText(/시작 시간/));
+    await user.type(await screen.findByLabelText(/시작 시간/), '14:00');
+    await user.click(await screen.findByRole('button', { name: /일정 수정/ }));
+    await user.click(await screen.findByText(/모든 일정/));
+    await user.click(await screen.findByRole('button', { name: /확인/ }));
+
+    // Assert
+    expect(await screen.findByText('기존 일정 (2025-02-10 14:00-15:00)')).toBeInTheDocument();
+    expect(await screen.findByText('기존 일정 (2025-02-11 14:00-15:00)')).toBeInTheDocument();
+    expect(await screen.findByText('기존 일정 (2025-02-12 14:00-15:00)')).toBeInTheDocument();
+  });
 });
