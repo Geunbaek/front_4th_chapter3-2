@@ -13,6 +13,7 @@ import App from '../App';
 import { notificationOptions, repeatDateOptions } from '../constants';
 import { Event, EventForm } from '../types';
 import { createRandomEvent } from './utils';
+import { generateRepeatDates } from '../utils/dateRepeat';
 import { formatDate } from '../utils/dateUtils';
 
 const renderWithUser = (...props: Parameters<typeof render>) => {

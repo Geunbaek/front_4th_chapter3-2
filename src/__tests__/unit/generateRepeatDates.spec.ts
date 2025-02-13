@@ -1,3 +1,5 @@
+import { generateRepeatDates } from '../../utils/dateRepeat';
+
 describe('generateRepeatDates', () => {
   describe('startDate 검증', () => {
     it('startDate를 설정하면 해당 시점부터 반복일정이 생성된다.', () => {
