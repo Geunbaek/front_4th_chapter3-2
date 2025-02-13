@@ -14,16 +14,18 @@ import {
 import { useState } from 'react';
 
 import { categories, notificationOptions } from '../constants';
-import { useEventForm } from '../hooks/useEventForm';
-import { Event, EventForm as EventFormData, RepeatType } from '../types';
+import { RepeatEndType, useEventForm } from '../hooks/useEventForm';
+import { Event, EventForm as EventFormData, RepeatEventEditMode, RepeatType } from '../types';
 import EventOverlapAlertDialog from './EventOverlapAlertDialog';
+import RepeatEventEditOptionsDialog from './RepeatEventEditOptionsDialog';
 import useEventOverlapCheck from '../hooks/useEventOverlapCheck';
+import { generateRepeatDates } from '../utils/dateRepeat';
 import { getTimeErrorMessage } from '../utils/timeValidation';
 
 interface EventFormProps {
   editingEvent: Event | null;
   events: Event[];
-  onSubmit: (eventData: Event | EventFormData) => Promise<void>;
+  onSubmit: (eventData: Event | EventFormData, repeatEditMode?: 'all' | 'single') => Promise<void>;
 }
 
 function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
@@ -44,10 +46,14 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
     setIsRepeating,
     repeatType,
     setRepeatType,
+    repeatEndType,
+    setRepeatEndType,
     repeatInterval,
     setRepeatInterval,
     repeatEndDate,
     setRepeatEndDate,
+    repeatCount,
+    setRepeatCount,
     notificationTime,
     setNotificationTime,
     startTimeError,
@@ -57,8 +63,10 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
     resetForm,
   } = useEventForm(editingEvent ?? undefined);
 
-  const { overlappingEvents, checkOverlap } = useEventOverlapCheck(events);
+  const { overlappingEvents, checkOverlap, checkEventListOverlap } = useEventOverlapCheck(events);
   const [isOverlapDialogOpen, setIsOverlapDialogOpen] = useState(false);
+  const [isRepeatEventEditOptionDialogOpen, setIsRepeatEventEditOptionDialogOpen] = useState(false);
+  const [repeatEditMode, setRepeatEditMode] = useState<RepeatEventEditMode>('all');
 
   const toast = useToast();
 
@@ -93,19 +101,45 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
       location,
       category,
       repeat: {
+        ...editingEvent?.repeat,
         type: isRepeating ? repeatType : 'none',
         interval: repeatInterval,
         endDate: repeatEndDate || undefined,
+        count: repeatCount || undefined,
       },
       notificationTime,
     };
 
-    if (checkOverlap(eventData)) {
-      setIsOverlapDialogOpen(true);
-    } else {
-      await onSubmit(eventData);
-      resetForm();
+    // 반복 일정 수정 시
+    if (editingEvent?.repeat.id) {
+      setIsRepeatEventEditOptionDialogOpen(true);
+      return;
     }
+
+    if (eventData.repeat.type === 'none') {
+      // 단일 일정 추가 시
+      if (checkOverlap(eventData)) {
+        setIsOverlapDialogOpen(true);
+        return;
+      }
+    } else {
+      // 반복 일정 추가 시
+      const dates = generateRepeatDates({
+        startDate: eventData.date,
+        endDate: eventData.repeat.endDate,
+        frequency: eventData.repeat.type,
+        interval: eventData.repeat.interval,
+        occurrences: eventData.repeat.count,
+      });
+      const repeatEvents = dates.map((date) => ({ ...eventData, date }));
+      if (checkEventListOverlap(repeatEvents)) {
+        setIsOverlapDialogOpen(true);
+        return;
+      }
+    }
+
+    await onSubmit(eventData);
+    resetForm();
   };
 
   return (
@@ -120,7 +154,12 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
 
         <FormControl>
           <FormLabel>날짜</FormLabel>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input
+            disabled={!!editingEvent?.repeat.id}
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
         </FormControl>
 
         <HStack width="100%">
@@ -174,7 +213,11 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
 
         <FormControl>
           <FormLabel>반복 설정</FormLabel>
-          <Checkbox isChecked={isRepeating} onChange={(e) => setIsRepeating(e.target.checked)}>
+          <Checkbox
+            disabled={!!editingEvent?.repeat.id}
+            isChecked={isRepeating}
+            onChange={(e) => setIsRepeating(e.target.checked)}
+          >
             반복 일정
           </Checkbox>
         </FormControl>
@@ -198,6 +241,7 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
             <FormControl>
               <FormLabel>반복 유형</FormLabel>
               <Select
+                disabled={!!editingEvent?.repeat.id}
                 value={repeatType}
                 onChange={(e) => setRepeatType(e.target.value as RepeatType)}
               >
@@ -207,24 +251,52 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
                 <option value="yearly">매년</option>
               </Select>
             </FormControl>
+            <FormControl>
+              <FormLabel>종료 유형</FormLabel>
+              <Select
+                disabled={!!editingEvent?.repeat.id}
+                value={repeatEndType}
+                onChange={(e) => setRepeatEndType(e.target.value as RepeatEndType)}
+              >
+                <option value="none">없음</option>
+                <option value="endDate">반복 종료일</option>
+                <option value="count">반복 횟수</option>
+              </Select>
+            </FormControl>
             <HStack width="100%">
               <FormControl>
                 <FormLabel>반복 간격</FormLabel>
                 <Input
+                  disabled={!!editingEvent?.repeat.id}
                   type="number"
                   value={repeatInterval}
                   onChange={(e) => setRepeatInterval(Number(e.target.value))}
                   min={1}
                 />
               </FormControl>
-              <FormControl>
-                <FormLabel>반복 종료일</FormLabel>
-                <Input
-                  type="date"
-                  value={repeatEndDate}
-                  onChange={(e) => setRepeatEndDate(e.target.value)}
-                />
-              </FormControl>
+              {repeatEndType === 'endDate' && (
+                <FormControl>
+                  <FormLabel>반복 종료일</FormLabel>
+                  <Input
+                    disabled={!!editingEvent?.repeat.id}
+                    type="date"
+                    value={repeatEndDate}
+                    onChange={(e) => setRepeatEndDate(e.target.value)}
+                  />
+                </FormControl>
+              )}
+              {repeatEndType === 'count' && (
+                <FormControl>
+                  <FormLabel>반복 횟수</FormLabel>
+                  <Input
+                    disabled={!!editingEvent?.repeat.id}
+                    type="number"
+                    value={repeatCount}
+                    onChange={(e) => setRepeatCount(Number(e.target.value))}
+                    min={1}
+                  />
+                </FormControl>
+              )}
             </HStack>
           </VStack>
         )}
@@ -235,7 +307,10 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
       <EventOverlapAlertDialog
         isOpen={isOverlapDialogOpen}
         overlappingEvents={overlappingEvents}
-        onConfirm={onSubmit}
+        onConfirm={(eventData) => {
+          onSubmit(eventData, repeatEditMode);
+          resetForm();
+        }}
         close={() => setIsOverlapDialogOpen(false)}
         savedEvent={{
           id: editingEvent ? editingEvent.id : undefined,
@@ -247,12 +322,43 @@ function EventForm({ editingEvent, events, onSubmit }: EventFormProps) {
           location,
           category,
           repeat: {
+            ...editingEvent?.repeat,
             type: isRepeating ? repeatType : 'none',
             interval: repeatInterval,
             endDate: repeatEndDate || undefined,
+            count: repeatCount || undefined,
           },
           notificationTime,
         }}
+      />
+      <RepeatEventEditOptionsDialog
+        events={events}
+        isOpen={isRepeatEventEditOptionDialogOpen}
+        repeatEditMode={repeatEditMode}
+        setRepeatEditMode={setRepeatEditMode}
+        checkOverlap={checkOverlap}
+        checkEventListOverlap={checkEventListOverlap}
+        openOverlapDialog={() => setIsOverlapDialogOpen(true)}
+        savedEvent={{
+          id: editingEvent ? editingEvent.id : '',
+          title,
+          date,
+          startTime,
+          endTime,
+          description,
+          location,
+          category,
+          repeat: {
+            ...editingEvent?.repeat,
+            type: isRepeating ? repeatType : 'none',
+            interval: repeatInterval,
+            endDate: repeatEndDate || undefined,
+            count: repeatCount || undefined,
+          },
+          notificationTime,
+        }}
+        onConfirm={onSubmit}
+        close={() => setIsRepeatEventEditOptionDialogOpen(false)}
       />
     </>
   );
