@@ -1,4 +1,4 @@
-import { BellIcon } from '@chakra-ui/icons';
+import { BellIcon, RepeatIcon } from '@chakra-ui/icons';
 import {
   Box,
   Heading,
@@ -48,6 +48,7 @@ function WeekView({ currentDate, filteredEvents, notifiedEvents }: WeekViewProps
                   .filter((event) => new Date(event.date).toDateString() === date.toDateString())
                   .map((event) => {
                     const isNotified = notifiedEvents.includes(event.id);
+                    const isRepeated = !!event.repeat.id;
                     return (
                       <Box
                         key={event.id}
@@ -60,6 +61,7 @@ function WeekView({ currentDate, filteredEvents, notifiedEvents }: WeekViewProps
                       >
                         <HStack spacing={1}>
                           {isNotified && <BellIcon />}
+                          {isRepeated && <RepeatIcon data-testid="repeat-icon" />}
                           <Text fontSize="sm" noOfLines={1}>
                             {event.title}
                           </Text>
