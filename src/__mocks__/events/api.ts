@@ -65,7 +65,6 @@ export const createEventsList = (mockData: { events: Event[] }, isError?: boolea
     const newEvents = makeNewEventsList(events);
 
     for (const event of newEvents) {
-      console.log(event);
       mockData.events = addEvent(mockData.events, event);
     }
 

@@ -357,7 +357,6 @@ describe('formatWeek', () => {
   it('연도가 바뀌는 주에 대해 올바른 주 정보를 반환한다', () => {
     // Arrange
     const date = new Date('2024-12-31');
-    console.log(date);
     // Act
     const formatedWeek = formatWeek(date);
 
