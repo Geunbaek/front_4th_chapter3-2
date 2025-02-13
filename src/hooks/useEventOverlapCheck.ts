@@ -12,7 +12,13 @@ function useEventOverlapCheck(events: Event[]) {
     return overlaps.length > 0;
   };
 
-  return { overlappingEvents, checkOverlap };
+  const checkEventListOverlap = (newEvents: Event[] | EventForm[]) => {
+    const overlaps = newEvents.map((newEvent) => findOverlappingEvents(newEvent, events)).flat();
+    setOverlappingEvents(overlaps);
+    return overlaps.length > 0;
+  };
+
+  return { overlappingEvents, checkOverlap, checkEventListOverlap };
 }
 
 export default useEventOverlapCheck;
