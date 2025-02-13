@@ -14,6 +14,17 @@ export const makeNewEvent = (eventForm: EventForm | Event): Event => {
   return { ...eventForm, id };
 };
 
+export const makeNewEventsList = (events: EventForm[] | Event[]): Event[] => {
+  const repeatId = faker.string.uuid();
+
+  return events.map((event) => {
+    const id = faker.string.uuid();
+    const isRepeatEvent = event.repeat.type !== 'none';
+
+    return { ...event, id, repeat: { ...event.repeat, id: isRepeatEvent ? repeatId : undefined } };
+  });
+};
+
 export const addEvent = (events: Event[], newEvent: Event) => {
   return push(events, newEvent);
 };

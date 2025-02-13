@@ -1,5 +1,13 @@
 import { Event } from '../types';
-import { createEvent, deleteEvent, getEvents, updateEvent } from './events/api';
+import {
+  createEvent,
+  createEventsList,
+  deleteEvent,
+  deleteEventsList,
+  getEvents,
+  updateEvent,
+  updateEventsList,
+} from './events/api';
 import { events } from './response/events.json';
 
 const mockData = {
@@ -13,4 +21,7 @@ export const handlers = [
   createEvent(mockData),
   updateEvent(mockData),
   deleteEvent(mockData),
+  createEventsList(mockData),
+  updateEventsList(mockData),
+  deleteEventsList(mockData),
 ];
